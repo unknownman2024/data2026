@@ -10,7 +10,10 @@ import time
 
 IST = pytz.timezone("Asia/Kolkata")
 
-START_DATE = "2026-01-01"
+START_DATE = "2026-02-02"
+
+# Force overwrite
+FORCE_DOWNLOAD = True
 
 # Sources
 SOURCES = {
@@ -37,7 +40,7 @@ def make_dir(path):
 
 
 def download(url, path):
-    """Download with retry + safety"""
+    """Force download (overwrite always)"""
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -47,7 +50,7 @@ def download(url, path):
                 with open(path, "wb") as f:
                     f.write(r.content)
 
-                print(f"✅ Saved: {path}")
+                print(f"🔁 Overwritten: {path}")
                 return True
 
             else:
@@ -87,20 +90,14 @@ def process_date(cur):
         sum_path = f"{base_dir}/{md}_finalsummary.json"
         det_path = f"{base_dir}/{md}_finaldetailed.json"
 
-        if os.path.exists(sum_path) and os.path.exists(det_path):
-            print(f"⏩ Skip {mode} (exists)")
-            continue
-
         summary_url = SOURCES[mode]["summary"].format(compact=compact)
         detailed_url = SOURCES[mode]["detailed"].format(compact=compact)
 
-        print(f"🔹 {mode.upper()} Fetching...")
+        print(f"🔹 {mode.upper()} Overwriting...")
 
-        if not os.path.exists(sum_path):
-            download(summary_url, sum_path)
-
-        if not os.path.exists(det_path):
-            download(detailed_url, det_path)
+        # Always overwrite
+        download(summary_url, sum_path)
+        download(detailed_url, det_path)
 
 
 # ==========================
@@ -112,7 +109,7 @@ def main():
     start = datetime.strptime(START_DATE, "%Y-%m-%d").date()
     end = get_last_allowed_date()
 
-    print("🚀 Fetch till:", end)
+    print("🚀 Overwriting till:", end)
 
     cur = start
 
