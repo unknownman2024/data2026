@@ -1,12 +1,10 @@
 name: 2026 Daily Logger
 
 on:
-
   workflow_dispatch:
 
   schedule:
     - cron: "30 22 * * *"   # 4:00 AM IST (UTC+5:30)
-
 
 jobs:
   fetch:
@@ -16,6 +14,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 🔥 important for rebase
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -30,12 +30,15 @@ jobs:
         run: |
           python logger/fetch_2026.py
 
-      - name: Commit
+      - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
           git add .
-          git commit -m "Update 2026 logs" || echo "No update"
+          git commit -m "Update 2026 logs" || echo "No changes"
 
-          git push
+          # 🔥 FIX: sync before push
+          git pull --rebase origin main
+
+          git push origin main
