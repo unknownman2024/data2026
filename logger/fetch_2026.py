@@ -2,7 +2,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 import pytz
-
+import time
 
 # ==========================
 # CONFIG
@@ -12,10 +12,20 @@ IST = pytz.timezone("Asia/Kolkata")
 
 START_DATE = "2026-01-01"
 
-# New Source
-SUMMARY_URL = "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finalsummary.json"
+# Sources
+SOURCES = {
+    "daily": {
+        "summary": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/daily/data/{compact}/finalsummary.json",
+        "detailed": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/daily/data/{compact}/finaldetailed.json"
+    },
+    "advance": {
+        "summary": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finalsummary.json",
+        "detailed": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finaldetailed.json"
+    }
+}
 
-DETAILED_URL = "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finaldetailed.json"
+MAX_RETRIES = 3
+TIMEOUT = 30
 
 
 # ==========================
@@ -27,28 +37,70 @@ def make_dir(path):
 
 
 def download(url, path):
+    """Download with retry + safety"""
 
-    try:
-        r = requests.get(url, timeout=30)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            r = requests.get(url, timeout=TIMEOUT)
 
-        if r.status_code == 200:
+            if r.status_code == 200:
+                with open(path, "wb") as f:
+                    f.write(r.content)
 
-            with open(path, "wb") as f:
-                f.write(r.content)
+                print(f"✅ Saved: {path}")
+                return True
 
-            print("Saved:", path)
-            return True
+            else:
+                print(f"⚠️ {r.status_code} for {url}")
 
-        return False
+        except Exception as e:
+            print(f"❌ Error ({attempt}):", url, e)
 
-    except Exception as e:
-        print("Error:", url, e)
-        return False
+        time.sleep(1.5 * attempt)
+
+    print(f"🚫 Failed after retries: {url}")
+    return False
 
 
 def get_last_allowed_date():
     now_ist = datetime.now(IST)
     return (now_ist - timedelta(days=1)).date()
+
+
+# ==========================
+# CORE FETCH
+# ==========================
+
+def process_date(cur):
+
+    year = cur.strftime("%Y")
+    md = cur.strftime("%m-%d")
+    compact = cur.strftime("%Y%m%d")
+
+    print(f"\n📅 Processing: {cur}")
+
+    for mode in ["daily", "advance"]:
+
+        base_dir = f"{mode}/data/{year}"
+        make_dir(base_dir)
+
+        sum_path = f"{base_dir}/{md}_finalsummary.json"
+        det_path = f"{base_dir}/{md}_finaldetailed.json"
+
+        if os.path.exists(sum_path) and os.path.exists(det_path):
+            print(f"⏩ Skip {mode} (exists)")
+            continue
+
+        summary_url = SOURCES[mode]["summary"].format(compact=compact)
+        detailed_url = SOURCES[mode]["detailed"].format(compact=compact)
+
+        print(f"🔹 {mode.upper()} Fetching...")
+
+        if not os.path.exists(sum_path):
+            download(summary_url, sum_path)
+
+        if not os.path.exists(det_path):
+            download(detailed_url, det_path)
 
 
 # ==========================
@@ -58,70 +110,14 @@ def get_last_allowed_date():
 def main():
 
     start = datetime.strptime(START_DATE, "%Y-%m-%d").date()
-
     end = get_last_allowed_date()
 
-    print("Fetch till:", end)
+    print("🚀 Fetch till:", end)
 
     cur = start
 
     while cur <= end:
-
-        year = cur.strftime("%Y")
-        md = cur.strftime("%m-%d")
-        compact = cur.strftime("%Y%m%d")
-
-        print("\nProcessing:", cur)
-
-        # ======================
-        # BOXOFFICE
-        # ======================
-
-        box_dir = f"daily/data/{year}"
-        make_dir(box_dir)
-
-        box_sum = f"{box_dir}/{md}_finalsummary.json"
-        box_det = f"{box_dir}/{md}_finaldetailed.json"
-
-        # Skip if already exists
-        if os.path.exists(box_sum) and os.path.exists(box_det):
-            print("Skip boxoffice (exists)")
-        else:
-
-            s_url = SUMMARY_URL.format(compact=compact)
-            d_url = DETAILED_URL.format(compact=compact)
-
-            if not os.path.exists(box_sum):
-                download(s_url, box_sum)
-
-            if not os.path.exists(box_det):
-                download(d_url, box_det)
-
-
-        # ======================
-        # ADVANCE
-        # ======================
-
-        adv_dir = f"advance/data/{year}"
-        make_dir(adv_dir)
-
-        adv_sum = f"{adv_dir}/{md}_finalsummary.json"
-        adv_det = f"{adv_dir}/{md}_finaldetailed.json"
-
-        if os.path.exists(adv_sum) and os.path.exists(adv_det):
-            print("Skip advance (exists)")
-        else:
-
-            s_url = SUMMARY_URL.format(compact=compact)
-            d_url = DETAILED_URL.format(compact=compact)
-
-            if not os.path.exists(adv_sum):
-                download(s_url, adv_sum)
-
-            if not os.path.exists(adv_det):
-                download(d_url, adv_det)
-
-
+        process_date(cur)
         cur += timedelta(days=1)
 
 
