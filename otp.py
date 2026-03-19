@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -9,8 +10,9 @@ BASE_URL = "https://filmynewsnetwork.com/api/all-box-office?date={}"
 START_DATE = "20260101"
 END_DATE = "20260201"
 
-OUTPUT_BASE = "advance/data/2026"
+OUTPUT_BASE = "daily/data/2026"
 MAX_WORKERS = 15
+RETRY_DELAY = 1   # seconds between retries
 
 
 def to_float(val):
@@ -68,32 +70,29 @@ def process_date(date_obj):
     display_date = date_obj.strftime("%m-%d")
     url = BASE_URL.format(date_str)
 
-    result = {
-        "date": date_str,
-        "status": "FAILED",
-        "message": ""
-    }
+    attempt = 1
 
-    try:
-        res = requests.get(url, timeout=20)
-        res.raise_for_status()
+    while True:
+        try:
+            res = requests.get(url, timeout=20)
+            res.raise_for_status()
 
-        json1 = res.json()
-        json2 = convert_json1_to_json2(json1)
+            json1 = res.json()
+            json2 = convert_json1_to_json2(json1)
 
-        os.makedirs(OUTPUT_BASE, exist_ok=True)
-        output_file = f"{OUTPUT_BASE}/{display_date}_finalsummary.json"
+            os.makedirs(OUTPUT_BASE, exist_ok=True)
+            output_file = f"{OUTPUT_BASE}/{display_date}_finalsummary.json"
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(json2, f, indent=2, ensure_ascii=False)
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(json2, f, indent=2, ensure_ascii=False)
 
-        result["status"] = "SUCCESS"
-        result["message"] = output_file
+            print(f"✅ {date_str} → {output_file} (attempt {attempt})")
+            return "SUCCESS"
 
-    except Exception as e:
-        result["message"] = str(e)
-
-    return result
+        except Exception as e:
+            print(f"🔁 Retry {attempt} for {date_str} → {e}")
+            attempt += 1
+            time.sleep(RETRY_DELAY)
 
 
 def main():
@@ -104,22 +103,12 @@ def main():
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [executor.submit(process_date, d) for d in dates]
 
-        success = 0
-        failed = 0
+        completed = 0
 
-        for future in as_completed(futures):
-            result = future.result()
+        for _ in as_completed(futures):
+            completed += 1
 
-            if result["status"] == "SUCCESS":
-                print(f"✅ {result['date']} → {result['message']}")
-                success += 1
-            else:
-                print(f"❌ {result['date']} → {result['message']}")
-                failed += 1
-
-    print("\n📊 Summary:")
-    print(f"✅ Success: {success}")
-    print(f"❌ Failed: {failed}")
+    print(f"\n🎯 All {completed} dates processed successfully!")
 
 
 if __name__ == "__main__":
