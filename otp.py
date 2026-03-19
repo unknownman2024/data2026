@@ -2,6 +2,7 @@ import requests
 import json
 import os
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE_URL = "https://filmynewsnetwork.com/api/all-box-office?date={}"
 
@@ -9,6 +10,7 @@ START_DATE = "20260101"
 END_DATE = "20260201"
 
 OUTPUT_BASE = "advance/data/2026"
+MAX_WORKERS = 15
 
 
 def to_float(val):
@@ -52,7 +54,7 @@ def convert_json1_to_json2(data):
     return output
 
 
-def daterange(start_date, end_date):
+def get_dates(start_date, end_date):
     start = datetime.strptime(start_date, "%Y%m%d")
     end = datetime.strptime(end_date, "%Y%m%d")
 
@@ -61,32 +63,63 @@ def daterange(start_date, end_date):
         start += timedelta(days=1)
 
 
+def process_date(date_obj):
+    date_str = date_obj.strftime("%Y%m%d")
+    display_date = date_obj.strftime("%m-%d")
+    url = BASE_URL.format(date_str)
+
+    result = {
+        "date": date_str,
+        "status": "FAILED",
+        "message": ""
+    }
+
+    try:
+        res = requests.get(url, timeout=20)
+        res.raise_for_status()
+
+        json1 = res.json()
+        json2 = convert_json1_to_json2(json1)
+
+        os.makedirs(OUTPUT_BASE, exist_ok=True)
+        output_file = f"{OUTPUT_BASE}/{display_date}_finalsummary.json"
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(json2, f, indent=2, ensure_ascii=False)
+
+        result["status"] = "SUCCESS"
+        result["message"] = output_file
+
+    except Exception as e:
+        result["message"] = str(e)
+
+    return result
+
+
 def main():
-    os.makedirs(OUTPUT_BASE, exist_ok=True)
+    dates = list(get_dates(START_DATE, END_DATE))
 
-    for date_obj in daterange(START_DATE, END_DATE):
-        date_str = date_obj.strftime("%Y%m%d")
-        display_date = date_obj.strftime("%m-%d")
+    print(f"🚀 Processing {len(dates)} dates with {MAX_WORKERS} workers...\n")
 
-        url = BASE_URL.format(date_str)
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_date, d) for d in dates]
 
-        try:
-            print(f"📡 Fetching {date_str}...")
-            res = requests.get(url, timeout=20)
-            res.raise_for_status()
+        success = 0
+        failed = 0
 
-            json1 = res.json()
-            json2 = convert_json1_to_json2(json1)
+        for future in as_completed(futures):
+            result = future.result()
 
-            output_file = f"{OUTPUT_BASE}/{display_date}_finalsummary.json"
+            if result["status"] == "SUCCESS":
+                print(f"✅ {result['date']} → {result['message']}")
+                success += 1
+            else:
+                print(f"❌ {result['date']} → {result['message']}")
+                failed += 1
 
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(json2, f, indent=2, ensure_ascii=False)
-
-            print(f"✅ Saved: {output_file}")
-
-        except Exception as e:
-            print(f"❌ Failed for {date_str}: {e}")
+    print("\n📊 Summary:")
+    print(f"✅ Success: {success}")
+    print(f"❌ Failed: {failed}")
 
 
 if __name__ == "__main__":
