@@ -15,8 +15,8 @@ START_DATE = "2026-01-01"
 # Sources
 SOURCES = {
     "daily": {
-        "summary": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/daily/data/{compact}/finalsummary.json",
-        "detailed": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/daily/data/{compact}/finaldetailed.json"
+        "summary": "https://bfilmyapi.pages.dev/daily/data/{compact}/finalsummary.json",
+        "detailed": "https://bfilmyapi.pages.dev/daily/data/{compact}/finaldetailed.json"
     },
     "advance": {
         "summary": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finalsummary.json",
