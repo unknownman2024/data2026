@@ -19,8 +19,8 @@ SOURCES = {
         "detailed": "https://bfilmyapi.pages.dev/daily/data/{compact}/finaldetailed.json"
     },
     "advance": {
-        "summary": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finalsummary.json",
-        "detailed": "https://raw.githubusercontent.com/unknownman2024/assetz/refs/heads/main/advance/data/{compact}/finaldetailed.json"
+        "summary": "https://bfilmyapi.pages.dev/advance/data/{compact}/finalsummary.json",
+        "detailed": "https://bfilmyapi.pages.dev/advance/data/{compact}/finaldetailed.json"
     }
 }
 
